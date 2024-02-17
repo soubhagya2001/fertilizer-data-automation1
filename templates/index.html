@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sensor Data</title>
+  <!-- Include Bootstrap CSS -->
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+
+  <style>
+    tr:first-child td {
+      background-color: green;
+      color: white;
+    }
+
+    .sensor-table, .alarm-table {
+      height: 200px;
+      overflow-y: auto;
+    }
+
+    .chart-container {
+      display: flex;
+      flex-wrap: wrap;
+    }
+
+    .chart-container canvas {
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container mt-5">
+    <h1>Sensor Data</h1>
+    <div class="row">
+      <div class="col-md-6">
+        <h3>Latest Sensor Data</h3>
+        <!-- Display sensor data here -->
+        <table class="table sensor-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Temperature</th>
+              <th>Pressure</th>
+              <th>Humidity</th>
+            </tr>
+          </thead>
+          <tbody id="sensor-data">
+            <!-- This is where sensor data will be displayed -->
+          </tbody>
+        </table>
+      </div>
+      <div class="col-md-6">
+        <h3>Latest Alarm Data</h3>
+        <!-- Display alarm data here -->
+        <table class="table alarm-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody id="alarm-data">
+            <!-- This is where alarm data will be displayed -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="col-md-6">
+        <h3>Graphs</h3>
+        <div class="chart-container">
+          <div>
+            <canvas id="temperature-chart" width="400" height="200"></canvas>
+          </div>
+          <div>
+            <canvas id="pressure-chart" width="400" height="200"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div>
+          <canvas id="humidity-chart" width="400" height="200"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Include jQuery -->
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script>
+    $(document).ready(function () {
+      var temperatureChart, pressureChart, humidityChart;
+
+      // Function to fetch latest sensor data and update the table
+      function fetchSensorData() {
+        $.ajax({
+          url: "/live-data", // Fetch live sensor data
+          method: "GET",
+          success: function (data) {
+            if (data && data.length > 0) {
+              // Update the sensor data table
+              console.log(data);
+              $("#sensor-data").html("");
+              data.forEach(function (sensor) {
+                $("#sensor-data").append(
+                  `<tr><td>${sensor.timestamp}</td><td>${sensor.temperature}</td><td>${sensor.pressure}</td><td>${sensor.humidity}</td></tr>`
+                );
+              });
+              console.log("Sensor Data Updated");
+              fetchAlarmData();
+              // Update charts with latest data
+              updateCharts(data);
+            } else {
+              console.log("No sensor data received or empty array.");
+            }
+          },
+          error: function (error) {
+            console.error("Error fetching latest sensor data:", error);
+          },
+        });
+      }
+
+      // Update temperature chart
+      function updateTemperatureChart(data) {
+        var timestamps = data.map(function (sensor) {
+          return sensor.timestamp;
+        });
+        var temperatures = data.map(function (sensor) {
+          return sensor.temperature;
+        });
+
+        if (temperatureChart) {
+          temperatureChart.destroy(); // Destroy previous chart instance
+        }
+
+        var ctx = document.getElementById('temperature-chart').getContext('2d');
+        temperatureChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: timestamps,
+            datasets: [{
+              label: 'Temperature',
+              data: temperatures,
+              borderColor: 'rgb(255, 99, 132)',
+              borderWidth: 1
+            }]
+          },
+          options: {}
+        });
+      }
+
+      // Update pressure chart
+      function updatePressureChart(data) {
+        var timestamps = data.map(function (sensor) {
+          return sensor.timestamp;
+        });
+        var pressures = data.map(function (sensor) {
+          return sensor.pressure;
+        });
+
+        if (pressureChart) {
+          pressureChart.destroy(); // Destroy previous chart instance
+        }
+
+        var ctx = document.getElementById('pressure-chart').getContext('2d');
+        pressureChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: timestamps,
+            datasets: [{
+              label: 'Pressure',
+              data: pressures,
+              borderColor: 'rgb(54, 162, 235)',
+              borderWidth: 1
+            }]
+          },
+          options: {}
+        });
+      }
+
+      // Update humidity chart
+      function updateHumidityChart(data) {
+        var timestamps = data.map(function (sensor) {
+          return sensor.timestamp;
+        });
+        var humidities = data.map(function (sensor) {
+          return sensor.humidity;
+        });
+
+        if (humidityChart) {
+          humidityChart.destroy(); // Destroy previous chart instance
+        }
+
+        var ctx = document.getElementById('humidity-chart').getContext('2d');
+        humidityChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: timestamps,
+            datasets: [{
+              label: 'Humidity',
+              data: humidities,
+              borderColor: 'rgb(75, 192, 192)',
+              borderWidth: 1
+            }]
+          },
+          options: {}
+        });
+      }
+
+      // Update all charts
+      function updateCharts(data) {
+        updateTemperatureChart(data);
+        updatePressureChart(data);
+        updateHumidityChart(data);
+      }
+
+
+      // Function to fetch latest alarm data and update the table
+      function fetchAlarmData() {
+          $.ajax({
+            url: "/live-alarm", // Fetch latest alarm data
+            method: "GET",
+            success: function (data) {
+              // Update the alarm data table
+              console.log(data);
+              $("#alarm-data").html("");
+              data.forEach(function (alarm) {
+                console.log(alarm);
+                $("#alarm-data").append(
+                  `<tr><td>${alarm.timestamp}</td><td>${alarm.description}</td></tr>`
+                );
+              });
+              console.log("Alarm Data Updated");
+            },
+            error: function (error) {
+              console.error("Error fetching latest alarm data:", error);
+            },
+          });
+        }
+
+      // Fetch latest sensor data immediately on page load
+      fetchSensorData();
+
+      // Fetch latest data every 4 seconds
+      setInterval(fetchSensorData, 4000);
+    });
+  </script>
+</body>
+</html>
