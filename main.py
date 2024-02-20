@@ -1,7 +1,10 @@
 from flask import Flask, render_template, jsonify
+from flask import request
 from opcua import Client
 import time
 import db
+from datetime import datetime, timedelta
+import mysql.connector
 
 app = Flask(__name__)
 
@@ -13,18 +16,20 @@ connection = db.establish_connection()
 @app.route('/')
 def index():
     if connection:
-        #latest_sensor_data = db.fetch_latest_sensor_data(connection, 10)
-        #latest_alarm_data = db.fetch_latest_alarm_data(connection, 10)
+       
         return render_template('index.html')
     else:
         return "Failed to connect to MySQL."
+    
+
+
 
 @app.route('/live-data')
 def live_data():
     if connection:
         print("sensor data is going to be fetched from DB")
         live_data = db.fetch_latest_sensor_data(connection,10)  # Corrected function name
-        # print(live_data)
+        print(live_data)
         return jsonify(live_data)
     else:
         return "Failed to connect to MySQL."
@@ -36,6 +41,39 @@ def live_alarm():
         return jsonify(live_data)
     else:
         return "Failed to connect to MySQL."
+
+
+# Route to handle filtered sensor data request
+@app.route('/filtered-sensor-data', methods=['POST'])
+def filtered_sensor_data():
+    try:
+        date = request.form.get('date')
+        time_range = 2  # Limiting data to 10 entries
+        if date:
+            filtered_data = db.fetch_sensor_data_within_time(connection, date)
+            print(f"Filtered Data : {filtered_data}")
+            return jsonify(filtered_data)
+        else:
+            return jsonify([])  # Return an empty list if date is not provided
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500  # Return error response if any exception occurs
+
+# Route to handle filtered alarm data request
+@app.route('/filtered-alarm-data', methods=['POST'])
+def filtered_alarm_data():
+    try:
+        date = request.form.get('date')
+        time_range = 10  # Limiting data to 10 entries
+        if date:
+            filtered_data = db.fetch_alarm_data_within_time(connection, date)
+            print(f"Filtered Alarm Data : {filtered_data}")
+            return jsonify(filtered_data)
+        else:
+            return jsonify([])  # Return an empty list if date is not provided
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500  # Return error response if any exception occurs
+
+
 
 def alarmForTemperature(timeValue, temp, pId):
     if connection:
@@ -67,7 +105,7 @@ def update_sensor_data():
 
 def fetch_live_sensor_data():
     try:
-        url = "opc.tcp://10.58.2.223:4840"
+        url = "opc.tcp://10.10.32.48:4840"
         client = Client(url)
         client.connect()
 
@@ -98,6 +136,60 @@ def fetch_live_sensor_data():
     except Exception as e:
         print(f"Error fetching live sensor data: {e}")
         return None
+    
+
+
+
+def fetch_sensor_data_within_time(connection, hours):
+    try:
+        if connection.is_connected():
+            mycursor = connection.cursor()
+            query = "SELECT * FROM sensorsdata WHERE timeStamp >= %s ORDER BY timeStamp DESC"
+            start_time = datetime.now() - timedelta(hours=hours)
+            mycursor.execute(query, (start_time,))
+            latest_data = mycursor.fetchall()
+
+            data_list = []
+            for row in latest_data:
+                data_dict = {
+                    'timestamp': row[0],
+                    'temperature': row[1],
+                    'pressure': row[2],
+                    'humidity': row[3],
+                    'sensorId': row[4],
+                    'processId': row[5]
+                }
+                data_list.append(data_dict)
+
+            return data_list
+    except mysql.connector.Error as e:
+        print(f"Error fetching latest sensor data: {e}")
+
+def fetch_alarm_data_within_time(connection, hours):
+    try:
+        if connection.is_connected():
+            mycursor = connection.cursor()
+            query = "SELECT * FROM alarmdata WHERE timestamp >= %s ORDER BY timestamp DESC"
+            start_time = datetime.now() - timedelta(hours=hours)
+            mycursor.execute(query, (start_time,))
+            latest_data = mycursor.fetchall()
+
+            data_list = []
+            for row in latest_data:
+                data_dict = {
+                    'timestamp': row[1],
+                    'description': row[2],
+                    'processId': row[3]
+                }
+                data_list.append(data_dict)
+
+            return data_list
+    except mysql.connector.Error as e:
+        print(f"Error fetching latest alarm data: {e}")
+
+
+
+
 
 if __name__ == '__main__':
     import threading
